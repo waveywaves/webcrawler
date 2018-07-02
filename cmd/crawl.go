@@ -76,16 +76,15 @@ func CrawlURL(str string, site string, wg *sync.WaitGroup) error {
 
 	var netTransport = &http.Transport{
 		Dial: (&net.Dialer{
-			Timeout: time.Second * 100,
+			Timeout: time.Second * 200,
 		}).Dial,
-		TLSHandshakeTimeout: time.Second * 100,
+		TLSHandshakeTimeout: time.Second * 200,
 	}
 	var netClient = &http.Client{
-		Timeout:   time.Second * 100,
+		Timeout:   time.Second * 200,
 		Transport: netTransport,
 	}
 	response, err := netClient.Get(str)
-
 	if err != nil {
 		log.Fatalf("Error occurred during http.Get : %v \n", err)
 		return err
