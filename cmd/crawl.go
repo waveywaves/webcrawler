@@ -4,27 +4,43 @@ import (
 	"errors"
 	"fmt"
 	"log"
+	"net"
 	"net/http"
 	"regexp"
 	"strings"
 	"sync"
+	"time"
 
 	"golang.org/x/net/html"
 )
 
 // Urls : All urls would be stored in the map present here and it also contains a mutex for locking mutex
 type Urls struct {
-	Access      sync.Mutex
+	Access      sync.RWMutex
 	UrlsScraped map[string]bool
 }
 
 // Add : Add to the UrlsScraped map
-func (URLS *Urls) Add(url string) {
-	URLS.Access.Lock()
-	defer URLS.Access.Unlock()
+func (URLS *Urls) Read(url string) bool {
+	URLS.Access.RLock()
+	defer URLS.Access.RUnlock()
+	if !URLS.UrlsScraped[url] {
+		return false
+	}
+	return true
+}
 
-	URLS.UrlsScraped[url] = true
+func (URLS *Urls) Write(url string) bool {
+	if !URLS.Read(url) {
+		URLS.Access.Lock()
 
+		URLS.UrlsScraped[url] = true
+		URLS.Access.Unlock()
+
+		fmt.Println(url)
+		return true
+	}
+	return false
 }
 
 // SetUrlsMap : Setter function to set the map
@@ -38,30 +54,43 @@ var URLS = Urls{}
 // CrawlWebsite : Crawl a given website
 func CrawlWebsite(str string) error {
 
+	var wg sync.WaitGroup
 	URLS.SetUrlsMap()
 
 	site := CheckStringInitial(str)
 	fmt.Println("Crawling " + site + " ...")
 
-	CrawlURL(str, site)
-	//fmt.Println("", urlsScraped)
+	wg.Add(1)
+	go CrawlURL(str, site, &wg)
+	wg.Wait()
 
 	return nil
 }
 
 // CrawlURL : Crawl a given URL
-func CrawlURL(str string, site string) error {
+func CrawlURL(str string, site string, wg *sync.WaitGroup) error {
+	defer wg.Done()
 	if !strings.Contains(str, "http") {
 		str = "http://" + str
 	}
-	response, err := http.Get(str)
+
+	var netTransport = &http.Transport{
+		Dial: (&net.Dialer{
+			Timeout: time.Second * 100,
+		}).Dial,
+		TLSHandshakeTimeout: time.Second * 100,
+	}
+	var netClient = &http.Client{
+		Timeout:   time.Second * 100,
+		Transport: netTransport,
+	}
+	response, err := netClient.Get(str)
 
 	if err != nil {
 		log.Fatalf("Error occurred during http.Get : %v \n", err)
 		return err
-	} else {
-		defer response.Body.Close()
 	}
+	defer response.Body.Close()
 
 	// Cannot assign struct field for map
 
@@ -79,10 +108,11 @@ func CrawlURL(str string, site string) error {
 					if a.Key == "href" {
 						scrapedURL := a.Val
 						scrapedURL = CheckScrapedHref(scrapedURL, site)
-						if scrapedURL != "" && !URLS.UrlsScraped[scrapedURL] {
-							URLS.Add(scrapedURL)
-							fmt.Println(scrapedURL)
-							CrawlURL(scrapedURL, site)
+						if scrapedURL != "" {
+							if URLS.Write(scrapedURL) {
+								wg.Add(1)
+								go CrawlURL(scrapedURL, site, wg)
+							}
 						}
 					}
 				}
