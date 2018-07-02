@@ -7,15 +7,39 @@ import (
 	"net/http"
 	"regexp"
 	"strings"
+	"sync"
 
 	"golang.org/x/net/html"
 )
 
-var urlsScraped = map[string]bool{}
+// Urls : All urls would be stored in the map present here and it also contains a mutex for locking mutex
+type Urls struct {
+	Access      sync.Mutex
+	UrlsScraped map[string]bool
+}
+
+// Add : Add to the UrlsScraped map
+func (URLS *Urls) Add(url string) {
+	URLS.Access.Lock()
+	defer URLS.Access.Unlock()
+
+	URLS.UrlsScraped[url] = true
+
+}
+
+// SetUrlsMap : Setter function to set the map
+func (URLS *Urls) SetUrlsMap() {
+	URLS.UrlsScraped = make(map[string]bool)
+}
+
+// URLS : instance of Urls
+var URLS = Urls{}
 
 // CrawlWebsite : Crawl a given website
 func CrawlWebsite(str string) error {
-	//var wg sync.WaitGroup
+
+	URLS.SetUrlsMap()
+
 	site := CheckStringInitial(str)
 	fmt.Println("Crawling " + site + " ...")
 
@@ -55,8 +79,8 @@ func CrawlURL(str string, site string) error {
 					if a.Key == "href" {
 						scrapedURL := a.Val
 						scrapedURL = CheckScrapedHref(scrapedURL, site)
-						if scrapedURL != "" && !urlsScraped[scrapedURL] {
-							urlsScraped[scrapedURL] = true
+						if scrapedURL != "" && !URLS.UrlsScraped[scrapedURL] {
+							URLS.Add(scrapedURL)
 							fmt.Println(scrapedURL)
 							CrawlURL(scrapedURL, site)
 						}
