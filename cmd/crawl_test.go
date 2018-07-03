@@ -9,7 +9,7 @@ func TestCrawlWebsite(t *testing.T) {
 		"webscraper.io",
 	}
 	for _, u := range urls {
-		err := CrawlWebsite(u)
+		err := CrawlWebsite(u, 100)
 		if err != nil {
 			t.Fail()
 		}

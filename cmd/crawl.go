@@ -3,9 +3,9 @@ package cmd
 import (
 	"errors"
 	"fmt"
-	"log"
 	"net"
 	"net/http"
+	"os"
 	"regexp"
 	"strings"
 	"sync"
@@ -14,7 +14,7 @@ import (
 	"golang.org/x/net/html"
 )
 
-// Urls : All urls would be stored in the map present here and it also contains a mutex for locking mutex
+// Urls : All urls would be stored in the map present here and it also contains a mutex for locking the resource
 type Urls struct {
 	Access      sync.RWMutex
 	UrlsScraped map[string]bool
@@ -36,8 +36,6 @@ func (URLS *Urls) Write(url string) bool {
 
 		URLS.UrlsScraped[url] = true
 		URLS.Access.Unlock()
-
-		fmt.Println(url)
 		return true
 	}
 	return false
@@ -51,42 +49,60 @@ func (URLS *Urls) SetUrlsMap() {
 // URLS : instance of Urls
 var URLS = Urls{}
 
+// sema : This channel will act as a semaphore to help allow a certain number of running goroutines(concurrent) at a time
+var sema chan bool
+
 // CrawlWebsite : Crawl a given website
-func CrawlWebsite(str string) error {
+func CrawlWebsite(str string, concurrent int) error {
+
+	//fmt.Printf("Max concurrent Goroutines set %v ..\n", concurrent)
 
 	var wg sync.WaitGroup
+	sema = make(chan bool, concurrent)
+	defer close(sema)
+	defer wg.Wait()
+
+	// Set Map in URLS
 	URLS.SetUrlsMap()
 
 	site := CheckStringInitial(str)
 	fmt.Println("Crawling " + site + " ...")
 
 	wg.Add(1)
+	sema <- true
 	go CrawlURL(str, site, &wg)
-	wg.Wait()
 
 	return nil
 }
 
+func getIndent(depth int) string {
+	return strings.Repeat("| ", depth)
+}
+
 // CrawlURL : Crawl a given URL
 func CrawlURL(str string, site string, wg *sync.WaitGroup) error {
+	defer func() { <-sema }()
 	defer wg.Done()
+
+	rdepthIncrement := regexp.MustCompile("/")
+	depth := 0
+
 	if !strings.Contains(str, "http") {
 		str = "http://" + str
 	}
-
 	var netTransport = &http.Transport{
 		Dial: (&net.Dialer{
-			Timeout: time.Second * 200,
+			Timeout: time.Duration(time.Second * 10),
 		}).Dial,
-		TLSHandshakeTimeout: time.Second * 200,
+		TLSHandshakeTimeout: time.Duration(time.Second * 5),
 	}
 	var netClient = &http.Client{
-		Timeout:   time.Second * 200,
+		Timeout:   time.Duration(time.Second * 5),
 		Transport: netTransport,
 	}
 	response, err := netClient.Get(str)
 	if err != nil {
-		log.Fatalf("Error occurred during http.Get : %v \n", err)
+		os.Stderr.WriteString(fmt.Sprintf("Error occurred during http.Get : %v \n", err))
 		return err
 	}
 	defer response.Body.Close()
@@ -110,15 +126,18 @@ func CrawlURL(str string, site string, wg *sync.WaitGroup) error {
 						if scrapedURL != "" {
 							if URLS.Write(scrapedURL) {
 								wg.Add(1)
+								sema <- true
+								depth = len(rdepthIncrement.FindAllStringIndex(str, -1))
+								fmt.Printf("%v %v \n", getIndent(depth), a.Val)
 								go CrawlURL(scrapedURL, site, wg)
 							}
 						}
 					}
 				}
 			}
-
 		}
 	}
+
 	return nil
 }
 
@@ -166,15 +185,7 @@ func CheckScrapedHref(scrapedURL string, site string) string {
 			//fmt.Println(slashMatchURL)
 		}
 		ret = slashMatchURL
-	} /*else {
-		checkSite, _ := regexp.Compile("^http.*\\.(.*)\\..*")
-		match := checkSite.FindStringSubmatch(scrapedURL)
-		if len(match) == 2 && strings.Contains(site, match[1]) {
-			//fmt.Println("_________SITE MATCH__________")
-			//fmt.Println(scrapedURL)
-			ret = scrapedURL
-		}
-	}*/
+	}
 
 	return ret
 }
