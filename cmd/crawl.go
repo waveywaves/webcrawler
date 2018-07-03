@@ -159,14 +159,14 @@ func CheckScrapedHref(scrapedURL string, site string) string {
 		//fmt.Println("__________SLASH MATCH___________")
 		if strings.Contains(scrapedURL, "//") {
 			//fmt.Println("__________DOUBLE FORWARD MATCHED___________")
-			slashMatchURL = "http://" + strings.TrimLeft(scrapedURL, "/")
+			//slashMatchURL = "http://" + strings.TrimLeft(scrapedURL, "/")
 			//fmt.Println(slashMatchURL)
 		} else {
 			slashMatchURL = strings.TrimRight(site, "/") + scrapedURL
 			//fmt.Println(slashMatchURL)
 		}
 		ret = slashMatchURL
-	} else {
+	} /*else {
 		checkSite, _ := regexp.Compile("^http.*\\.(.*)\\..*")
 		match := checkSite.FindStringSubmatch(scrapedURL)
 		if len(match) == 2 && strings.Contains(site, match[1]) {
@@ -174,7 +174,7 @@ func CheckScrapedHref(scrapedURL string, site string) string {
 			//fmt.Println(scrapedURL)
 			ret = scrapedURL
 		}
-	}
+	}*/
 
 	return ret
 }

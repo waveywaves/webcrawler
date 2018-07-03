@@ -7,5 +7,4 @@ COPY . ./src/github.com/waveywaves/webcrawler/
 RUN export GOPATH=$(pwd)
 RUN go install github.com/waveywaves/webcrawler
 
-
 ENTRYPOINT ["/go/bin/webcrawler"]

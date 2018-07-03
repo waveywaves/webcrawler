@@ -11,8 +11,3 @@ func TestCrawlWebsite(t *testing.T) {
 	}
 	for _, u := range urls {
 		err := CrawlWebsite(u)
-		if err != nil {
-			t.Fail()
-		}
-	}
-}
