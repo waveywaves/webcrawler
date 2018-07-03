@@ -1,5 +1,5 @@
-# sitescraper
-Command Line utility for scraping a Website. 
+# webcrawler
+Command Line utility for crawling a Website. 
 
 This is a simple utility for a user to be able to generate a pseudo-sitemap to the internal and not the external links to the website. 
 The main purpose of this tool was to make web scraping a site for the internal links possible on the command line.
