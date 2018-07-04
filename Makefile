@@ -7,7 +7,7 @@ GOGET=$(GOCMD) get
 BINARY_NAME=webcrawler
 BINARY_UNIX=$(BINARY_NAME)_unix
     
-all: test build
+all: deps test build run
 build: 
 	$(GOBUILD) -o $(BINARY_NAME) -v main.go
 test: 
