@@ -52,6 +52,8 @@ var URLS = Urls{}
 // sema : This channel will act as a semaphore to help allow a certain number of running goroutines(concurrent) at a time
 var sema chan bool
 
+//timer
+
 // CrawlWebsite : Crawl a given website
 func CrawlWebsite(str string, concurrent int) error {
 
@@ -84,15 +86,12 @@ func CrawlURL(str string, site string, wg *sync.WaitGroup) error {
 	defer func() { <-sema }()
 	defer wg.Done()
 
-	rdepthIncrement := regexp.MustCompile("/")
-	depth := 0
-
 	if !strings.Contains(str, "http") {
 		str = "http://" + str
 	}
 	var netTransport = &http.Transport{
 		Dial: (&net.Dialer{
-			Timeout: time.Duration(time.Second * 10),
+			Timeout: time.Duration(time.Second * 5),
 		}).Dial,
 		TLSHandshakeTimeout: time.Duration(time.Second * 5),
 	}
@@ -127,8 +126,7 @@ func CrawlURL(str string, site string, wg *sync.WaitGroup) error {
 							if URLS.Write(scrapedURL) {
 								wg.Add(1)
 								sema <- true
-								depth = len(rdepthIncrement.FindAllStringIndex(str, -1))
-								fmt.Printf("%v %v \n", getIndent(depth), a.Val)
+								fmt.Printf("%v %v \n", getIndent(strings.Count(a.Val, "/")), a.Val)
 								go CrawlURL(scrapedURL, site, wg)
 							}
 						}
