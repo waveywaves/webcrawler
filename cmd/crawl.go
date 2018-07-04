@@ -52,12 +52,8 @@ var URLS = Urls{}
 // sema : This channel will act as a semaphore to help allow a certain number of running goroutines(concurrent) at a time
 var sema chan bool
 
-//timer
-
 // CrawlWebsite : Crawl a given website
 func CrawlWebsite(str string, concurrent int) error {
-
-	//fmt.Printf("Max concurrent Goroutines set %v ..\n", concurrent)
 
 	var wg sync.WaitGroup
 	sema = make(chan bool, concurrent)
@@ -73,7 +69,6 @@ func CrawlWebsite(str string, concurrent int) error {
 	wg.Add(1)
 	sema <- true
 	go CrawlURL(str, site, &wg)
-
 	return nil
 }
 
@@ -83,12 +78,17 @@ func getIndent(depth int) string {
 
 // CrawlURL : Crawl a given URL
 func CrawlURL(str string, site string, wg *sync.WaitGroup) error {
-	defer func() { <-sema }()
+
+	//defer func() { <-sema }()
 	defer wg.Done()
 
 	if !strings.Contains(str, "http") {
 		str = "http://" + str
 	}
+
+	/*
+		#### Custom Client for correct Timing Out of the Client and Dial
+	*/
 	var netTransport = &http.Transport{
 		Dial: (&net.Dialer{
 			Timeout: time.Duration(time.Second * 5),
@@ -99,14 +99,31 @@ func CrawlURL(str string, site string, wg *sync.WaitGroup) error {
 		Timeout:   time.Duration(time.Second * 5),
 		Transport: netTransport,
 	}
-	response, err := netClient.Get(str)
+	// ####
+
+	/*
+		#### Custom Http Get Request so we can time it out at the correct moment
+		Was implemented with contecxt before
+	*/
+	request, err := http.NewRequest(http.MethodGet, str, nil)
+	if err != nil {
+		os.Stderr.WriteString(fmt.Sprintf("Error occurred during HttpGet %v : %v \n", str, err))
+	}
+	// ####
+
+	/*
+		#### Using the Custom client with the customer HTTP Get Request
+	*/
+	response, err := netClient.Do(request)
 	if err != nil {
 		os.Stderr.WriteString(fmt.Sprintf("Error occurred during http.Get : %v \n", err))
 		return err
 	}
 	defer response.Body.Close()
-
-	// Cannot assign struct field for map
+	if response.StatusCode != http.StatusOK {
+		os.Stderr.WriteString(fmt.Sprintf("Incorrect HTTP status obtained : %v \n", response.Status))
+	}
+	// ####
 
 	htmlTokenizer := html.NewTokenizer(response.Body)
 
@@ -124,10 +141,11 @@ func CrawlURL(str string, site string, wg *sync.WaitGroup) error {
 						scrapedURL = CheckScrapedHref(scrapedURL, site)
 						if scrapedURL != "" {
 							if URLS.Write(scrapedURL) {
-								wg.Add(1)
 								sema <- true
+								wg.Add(2)
 								fmt.Printf("%v %v \n", getIndent(strings.Count(a.Val, "/")), a.Val)
 								go CrawlURL(scrapedURL, site, wg)
+								go func() { defer wg.Done(); time.Sleep(3 * time.Second); <-sema }()
 							}
 						}
 					}

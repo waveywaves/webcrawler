@@ -32,11 +32,9 @@ func RunRootCmd(cmd *cobra.Command, args []string) {
 	}
 }
 
-// Execute :
+// Execute : Execute Cobra Commandline
 func Execute() {
-
 	RootCmd.PersistentFlags().IntVar(&concurrentGoroutines, "n", 30, "number of concurrent Goroutines")
-
 	if err := RootCmd.Execute(); err != nil {
 		fmt.Println(err)
 		os.Exit(1)
