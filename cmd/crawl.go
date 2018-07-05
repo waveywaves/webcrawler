@@ -55,37 +55,51 @@ var sema chan bool
 // CrawlWebsite : Crawl a given website
 func CrawlWebsite(str string, concurrent int) error {
 
-	var wg sync.WaitGroup
-	sema = make(chan bool, concurrent)
-	defer close(sema)
-	defer wg.Wait()
+	if str != "" && concurrent >= 2 {
+		var wg sync.WaitGroup
+		sema = make(chan bool, concurrent)
+		defer close(sema)
+		defer wg.Wait()
 
-	// Set Map in URLS
-	URLS.SetUrlsMap()
+		// Set Map in URLS
+		URLS.SetUrlsMap()
 
-	site := CheckStringInitial(str)
-	fmt.Println("Crawling " + site + " ...")
+		site := CheckStringInitial(str)
+		fmt.Println("Crawling " + site + " ...")
 
-	wg.Add(1)
-	sema <- true
-	go CrawlURL(str, site, &wg)
+		wg.Add(1)
+		sema <- true
+		go CrawlURL(str, site, &wg)
+	} else if concurrent < 2 {
+		fmt.Println("The minimum number of goroutines needed to run this application is 2. \n\t Please give 2 or a higher number of goroutines")
+	} else {
+		fmt.Println("Please give a proper argument for the website you want to scrape")
+	}
+
 	return nil
+
 }
 
 func getIndent(depth int) string {
 	return strings.Repeat("| ", depth)
 }
 
-// CrawlURL : Crawl a given URL
-func CrawlURL(str string, site string, wg *sync.WaitGroup) error {
+func getHTTPGETRequest(str string) *http.Request {
 
-	//defer func() { <-sema }()
-	defer wg.Done()
-
-	if !strings.Contains(str, "http") {
-		str = "http://" + str
+	/*
+		#### Custom Http Get Request so we can time it out at the correct moment
+		Was implemented with contecxt before
+	*/
+	request, err := http.NewRequest(http.MethodGet, str, nil)
+	if err != nil {
+		os.Stderr.WriteString(fmt.Sprintf("Error occurred during HttpGet %v : %v \n", str, err))
 	}
+	// ####
 
+	return request
+}
+
+func getHTTPClient() *http.Client {
 	/*
 		#### Custom Client for correct Timing Out of the Client and Dial
 	*/
@@ -100,21 +114,22 @@ func CrawlURL(str string, site string, wg *sync.WaitGroup) error {
 		Transport: netTransport,
 	}
 	// ####
+	return netClient
+}
 
-	/*
-		#### Custom Http Get Request so we can time it out at the correct moment
-		Was implemented with contecxt before
-	*/
-	request, err := http.NewRequest(http.MethodGet, str, nil)
-	if err != nil {
-		os.Stderr.WriteString(fmt.Sprintf("Error occurred during HttpGet %v : %v \n", str, err))
+// CrawlURL : Crawl a given URL
+func CrawlURL(str string, site string, wg *sync.WaitGroup) error {
+
+	//defer func() { <-sema }()
+	defer wg.Done()
+
+	if !strings.Contains(str, "http") {
+		str = "http://" + str
 	}
-	// ####
 
-	/*
-		#### Using the Custom client with the customer HTTP Get Request
-	*/
-	response, err := netClient.Do(request)
+	httpClient := getHTTPClient()
+	request := getHTTPGETRequest(str)
+	response, err := httpClient.Do(request)
 	if err != nil {
 		os.Stderr.WriteString(fmt.Sprintf("Error occurred during http.Get : %v \n", err))
 		return err
